@@ -22,6 +22,7 @@ export const timerRestartRound = () => invoke<void>('timer_restart_round');
 export const timerSkip = () => invoke<void>('timer_skip');
 export const getTimerState = () => invoke<TimerState>('timer_get_state');
 export const timerRecordDistraction = () => invoke<TimerState>('timer_record_distraction');
+export const timerAddFiveMinutes = () => invoke<void>('timer_add_five_minutes');
 
 // --- Settings commands ---
 
@@ -124,6 +125,9 @@ export const onRoundChange = (cb: (state: TimerState) => void): Promise<Unlisten
 
 export const onTimerReset = (cb: (state: TimerState) => void): Promise<UnlistenFn> =>
   listen<TimerState>('timer:reset', (e) => cb(e.payload));
+
+export const onTimerDurationChanged = (cb: (state: TimerState) => void): Promise<UnlistenFn> =>
+  listen<TimerState>('timer:duration-changed', (e) => cb(e.payload));
 
 export const onSettingsChanged = (cb: (settings: Settings) => void): Promise<UnlistenFn> =>
   listen<Settings>('settings:changed', (e) => cb(e.payload));

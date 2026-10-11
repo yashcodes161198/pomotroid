@@ -4,8 +4,6 @@
   import { onMount } from 'svelte';
   import {
     timerToggle,
-    timerRestartRound,
-    timerSkip,
     timerRecordDistraction,
     getTimerState,
     onTimerTick,
@@ -13,6 +11,7 @@
     onTimerResumed,
     onRoundChange,
     onTimerReset,
+    onTimerDurationChanged,
   } from '$lib/ipc';
   import { timerState } from '$lib/stores/timer';
   import { settings } from '$lib/stores/settings';
@@ -21,7 +20,6 @@
   import TimerDisplay from './TimerDisplay.svelte';
   import TimerFooter from './TimerFooter.svelte';
   import MiniControls from './MiniControls.svelte';
-  import Tooltip from './Tooltip.svelte';
   import type { UnlistenFn } from '@tauri-apps/api/event';
   import * as m from '$paraglide/messages.js';
   import { notificationShow } from '$lib/ipc';
@@ -113,6 +111,9 @@
         }),
         await onTimerReset((snap) => {
           timerState.set(snap);
+        }),
+        await onTimerDurationChanged((snap) => {
+          timerState.set(snap);
         })
       );
     })();
@@ -160,16 +161,6 @@
       </div>
 
       <div class="controls-wrapper">
-        <!-- Back: restart current round -->
-        <Tooltip text={m.tooltip_restart_round()}>
-          <button class="btn-side" onclick={timerRestartRound} aria-label="Restart round">
-            <svg width="18" height="18" viewBox="0 0 16 16">
-              <polygon points="15,1 6,8 15,15" fill="currentColor" />
-              <rect x="1" y="1" width="3" height="14" rx="1" fill="currentColor" />
-            </svg>
-          </button>
-        </Tooltip>
-
         <!-- Play / Pause — icon fades when state changes -->
         <button
           class="play-pause"
@@ -191,19 +182,8 @@
             </span>
           {/key}
         </button>
-
-        <!-- Skip: advance to next round -->
-        <Tooltip text={m.tooltip_skip()}>
-          <button class="btn-side" onclick={timerSkip} aria-label="Skip round">
-            <svg width="18" height="18" viewBox="0 0 16 16">
-              <polygon points="1,1 10,8 1,15" fill="currentColor" />
-              <rect x="12" y="1" width="3" height="14" rx="1" fill="currentColor" />
-            </svg>
-          </button>
-        </Tooltip>
-
-        <TimerFooter snap={state} />
       </div>
+      <TimerFooter snap={state} />
     {/if}
   </div>
 
@@ -224,7 +204,12 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
+    width: 300px;
+  }
+
+  .compact .timer {
+    width: auto;
   }
 
   .dial-stack {
@@ -295,33 +280,9 @@
   }
 
   .controls-wrapper {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px 12px;
-  }
-  .controls-wrapper > :global(*) {
-    aspect-ratio: 1;
-  }
-
-  .btn-side {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--color-foreground-darker, var(--color-foreground));
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 4px;
-    transition:
-      color var(--transition-default),
-      background var(--transition-default);
-  }
-
-  .btn-side:hover {
-    color: var(--color-foreground);
-    background: var(--color-hover);
   }
 
   .play-pause {

@@ -59,6 +59,11 @@ pub fn timer_record_distraction(timer: State<'_, TimerController>) -> TimerSnaps
     timer.record_distraction()
 }
 
+#[tauri::command]
+pub fn timer_add_five_minutes(timer: State<'_, TimerController>) {
+    timer.add_five_minutes();
+}
+
 // ---------------------------------------------------------------------------
 // CMD-02 — Settings commands
 // ---------------------------------------------------------------------------
