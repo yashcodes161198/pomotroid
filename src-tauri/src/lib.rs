@@ -373,6 +373,7 @@ pub fn run() {
             timer_restart_round,
             timer_skip,
             timer_get_state,
+            timer_record_distraction,
             // Settings
             settings_get,
             settings_set,

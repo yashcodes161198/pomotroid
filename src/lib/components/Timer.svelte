@@ -6,6 +6,7 @@
     timerToggle,
     timerRestartRound,
     timerSkip,
+    timerRecordDistraction,
     getTimerState,
     onTimerTick,
     onTimerPaused,
@@ -24,6 +25,7 @@
   import type { UnlistenFn } from '@tauri-apps/api/event';
   import * as m from '$paraglide/messages.js';
   import { notificationShow } from '$lib/ipc';
+  import { error as logError } from '@tauri-apps/plugin-log';
 
   interface Props {
     isCompact?: boolean;
@@ -33,6 +35,14 @@
   let { isCompact = false, uiScale = 1 }: Props = $props();
 
   let state = $derived($timerState);
+
+  async function recordDistraction() {
+    try {
+      timerState.set(await timerRecordDistraction());
+    } catch (error) {
+      await logError(`[timer] failed to record distraction: ${error}`);
+    }
+  }
 
   function roundColor(rt: string): string {
     if (rt === 'work') return 'var(--color-focus-round)';
@@ -115,15 +125,36 @@
 
 <div class="timer-outer" class:compact={isCompact}>
   <div class="timer" style="zoom: {uiScale}">
-    <!-- Dial + display stacked (display centered over dial) -->
+    <TimerDisplay {state} />
+
     <div class="dial-stack">
       <TimerDial snap={state} countdown={$settings.dial_countdown} />
-      <TimerDisplay {state} />
+      <button
+        class="distraction-counter"
+        class:has-count={state.distraction_count > 0}
+        onclick={recordDistraction}
+        disabled={state.round_type !== 'work'}
+        aria-label={m.timer_distraction_add()}
+        title={m.timer_distraction_hint()}
+        onkeydown={(event) => {
+          if (event.key === ' ' || event.key === 'Enter') event.stopPropagation();
+        }}
+      >
+        <span aria-live="polite" aria-atomic="true">
+          {#if state.distraction_count > 0}
+            <span aria-hidden="true">{state.distraction_count}</span>
+            <span class="sr-only">{m.timer_distraction_count({ n: state.distraction_count })}</span>
+          {:else if state.round_type === 'work'}
+            <span class="distraction-prompt">{m.timer_distraction_hit()}</span>
+            <span class="distraction-caption">{m.timer_distraction_when()}</span>
+          {:else}
+            <span class="distraction-caption">{roundLabel(state.round_type)}</span>
+          {/if}
+        </span>
+      </button>
     </div>
 
     {#if !isCompact}
-      <!-- Round type label sits below the dial as a normal flex child so it
-           does not affect the dial-stack height used to centre TimerDisplay. -->
       <div class="round-label" style="color: {roundColor(state.round_type)}">
         {roundLabel(state.round_type)}
       </div>
@@ -201,6 +232,66 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .distraction-counter {
+    position: absolute;
+    inset: 20px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-foreground);
+    font: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition-default);
+  }
+
+  .distraction-counter:hover:not(:disabled) {
+    background: var(--color-hover);
+  }
+
+  .distraction-counter:focus-visible {
+    outline: 2px solid var(--color-focus-round);
+    outline-offset: 4px;
+  }
+
+  .distraction-counter:disabled {
+    cursor: default;
+  }
+
+  .distraction-prompt,
+  .distraction-caption {
+    display: block;
+  }
+
+  .distraction-prompt {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .distraction-caption {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--color-foreground-darker, var(--color-foreground));
+  }
+
+  .has-count {
+    font-family: 'Mona Sans Mono', monospace;
+    font-size: 2.8rem;
+    font-weight: 300;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .controls-wrapper {

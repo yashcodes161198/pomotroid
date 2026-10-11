@@ -54,6 +54,11 @@ pub fn timer_get_state(timer: State<'_, TimerController>) -> TimerSnapshot {
     timer.get_snapshot()
 }
 
+#[tauri::command]
+pub fn timer_record_distraction(timer: State<'_, TimerController>) -> TimerSnapshot {
+    timer.record_distraction()
+}
+
 // ---------------------------------------------------------------------------
 // CMD-02 — Settings commands
 // ---------------------------------------------------------------------------

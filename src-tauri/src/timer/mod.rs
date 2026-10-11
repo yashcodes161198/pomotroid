@@ -38,6 +38,7 @@ pub struct TimerSnapshot {
     /// Monotonically-increasing focus round count since last reset. Used as a
     /// session counter when long breaks are disabled.
     pub session_work_count: u32,
+    pub distraction_count: u32,
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +158,11 @@ impl TimerController {
         self.engine.send(TimerCommand::Skip);
     }
 
+    pub fn record_distraction(&self) -> TimerSnapshot {
+        self.sequence.lock().unwrap().record_distraction();
+        self.get_snapshot()
+    }
+
     pub fn suspend(&self) {
         self.engine.send(TimerCommand::Suspend);
     }
@@ -193,6 +199,7 @@ impl TimerController {
             work_round_number: seq.work_round_number,
             work_rounds_total: seq.work_rounds_total,
             session_work_count: seq.session_work_count,
+            distraction_count: seq.distraction_count,
         }
     }
 
@@ -441,6 +448,7 @@ fn listen_events(
 
             TimerEvent::Reset => {
                 log::debug!("[timer] idle");
+                sequence.lock().unwrap().distraction_count = 0;
                 // Abandon the active session (leave DB row as-is).
                 current_session_id = None;
 
@@ -515,5 +523,6 @@ fn build_snapshot(
         work_round_number: seq.work_round_number,
         work_rounds_total: seq.work_rounds_total,
         session_work_count: seq.session_work_count,
+        distraction_count: seq.distraction_count,
     }
 }
