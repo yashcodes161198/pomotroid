@@ -272,6 +272,18 @@ mod tests {
         events
     }
 
+    fn wait_for_tick(rx: &Receiver<TimerEvent>, elapsed: u32) -> Vec<TimerEvent> {
+        let mut events = Vec::new();
+        loop {
+            let event = rx.recv_timeout(Duration::from_secs(2)).expect("timer must tick");
+            let reached = matches!(&event, TimerEvent::Tick { elapsed_secs, .. } if *elapsed_secs >= elapsed);
+            events.push(event);
+            if reached {
+                return events;
+            }
+        }
+    }
+
     fn collect_until_complete(rx: &Receiver<TimerEvent>, timeout: Duration) -> Vec<TimerEvent> {
         let deadline = Instant::now() + timeout;
         let mut events = Vec::new();
@@ -333,15 +345,7 @@ mod tests {
         handle.send(TimerCommand::Start);
 
         // Wait for actual ticks: thread startup can exceed 50 ms on Windows CI.
-        let mut events_before_resume = Vec::new();
-        loop {
-            let event = rx.recv_timeout(Duration::from_secs(2)).expect("timer must tick");
-            let reached_two = matches!(event, TimerEvent::Tick { elapsed_secs: 2, .. });
-            events_before_resume.push(event);
-            if reached_two {
-                break;
-            }
-        }
+        let mut events_before_resume = wait_for_tick(&rx, 2);
         handle.send(TimerCommand::Pause);
 
         // Collect events so far.
@@ -544,8 +548,7 @@ mod tests {
         // should run at least one more tick first.
         let (handle, rx) = spawn(10, TICK);
         handle.send(TimerCommand::Start);
-        // Let 5 ticks fire so elapsed_secs = 5.
-        std::thread::sleep(TICK * 5 + TICK / 2);
+        wait_for_tick(&rx, 5);
         // Prime with duration below elapsed — without the clamp this would fire
         // Complete on the very next tick.
         handle.send(TimerCommand::Prime { duration_secs: 2 });
@@ -571,8 +574,7 @@ mod tests {
         // must not cause immediate completion on the first tick after Resume.
         let (handle, rx) = spawn(10, TICK);
         handle.send(TimerCommand::Start);
-        // Let 5 ticks fire, then pause.
-        std::thread::sleep(TICK * 5 + TICK / 2);
+        wait_for_tick(&rx, 5);
         handle.send(TimerCommand::Pause);
         std::thread::sleep(TICK); // let Paused event arrive
         drain(&rx);
