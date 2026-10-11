@@ -84,13 +84,16 @@ impl SequenceState {
                     // At the long-break point.
                     if settings.long_breaks_enabled && settings.time_long_break_secs > 0 {
                         RoundType::LongBreak
-                    } else if settings.short_breaks_enabled && settings.time_short_break_secs > 0 {
+                    } else if !settings.long_breaks_enabled
+                        && settings.short_breaks_enabled
+                        && settings.time_short_break_secs > 0
+                    {
                         // Substitute a short break; set to 0 so the ShortBreak→Work arm
                         // increments it to 1, preserving the cycle-reset invariant.
                         self.work_round_number = 0;
                         RoundType::ShortBreak
                     } else {
-                        // Both breaks disabled: loop directly back to Work(1).
+                        // Break skipped: loop directly back to Work(1).
                         self.work_round_number = 1;
                         RoundType::Work
                     }
@@ -213,10 +216,9 @@ mod tests {
     }
 
     #[test]
-    fn zero_long_break_uses_short_break_then_resets_the_cycle() {
+    fn zero_long_break_skips_to_work_then_resets_the_cycle() {
         let s = settings(1500, 7, 0);
         let mut seq = SequenceState::new(1);
-        assert_eq!(seq.advance(&s), (RoundType::ShortBreak, 7));
         assert_eq!(seq.advance(&s), (RoundType::Work, 1500));
         assert_eq!(seq.work_round_number, 1);
     }
