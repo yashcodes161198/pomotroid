@@ -82,6 +82,9 @@
   <button
     class="btn-text add-time"
     onclick={addFiveMinutes}
+    onkeydown={(event) => {
+      if (event.key === ' ' || event.key === 'Enter') event.stopPropagation();
+    }}
     aria-label={m.timer_add_five_minutes()}
     title={m.timer_add_five_minutes()}>+5</button
   >

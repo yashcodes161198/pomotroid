@@ -26,8 +26,13 @@
     {/key}
   </button>
 
-  <button class="btn-side" onclick={timerAddFiveMinutes} aria-label={m.timer_add_five_minutes()}
-    >+5</button
+  <button
+    class="btn-side"
+    onclick={timerAddFiveMinutes}
+    aria-label={m.timer_add_five_minutes()}
+    onkeydown={(event) => {
+      if (event.key === ' ' || event.key === 'Enter') event.stopPropagation();
+    }}>+5</button
   >
 
   <!-- Skip round -->
