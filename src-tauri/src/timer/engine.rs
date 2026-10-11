@@ -38,7 +38,7 @@ pub enum TimerCommand {
 pub enum TimerEvent {
     Started { total_secs: u32 },
     Tick { elapsed_secs: u32, total_secs: u32 },
-    Complete { skipped: bool },
+    Complete { skipped: bool, elapsed_secs: u32 },
     Paused { elapsed_secs: u32 },
     Resumed { elapsed_secs: u32 },
     Reset,
@@ -148,7 +148,7 @@ fn run_loop(
                 }
                 // Skip while Idle: advance to the next round without starting.
                 Ok(TimerCommand::Skip) => {
-                    let _ = event_tx.send(TimerEvent::Complete { skipped: true });
+                    let _ = event_tx.send(TimerEvent::Complete { skipped: true, elapsed_secs });
                     Transition::Stay
                 }
                 Ok(TimerCommand::Shutdown) | Err(_) => Transition::Break,
@@ -171,8 +171,8 @@ fn run_loop(
                     Transition::To(Phase::Idle)
                 }
                 Ok(TimerCommand::Skip) => {
+                    let _ = event_tx.send(TimerEvent::Complete { skipped: true, elapsed_secs });
                     elapsed_secs = 0;
-                    let _ = event_tx.send(TimerEvent::Complete { skipped: true });
                     Transition::To(Phase::Idle)
                 }
                 Ok(TimerCommand::Reconfigure { duration_secs: d }) => {
@@ -210,7 +210,7 @@ fn run_loop(
                         let _ = event_tx.send(TimerEvent::Tick { elapsed_secs, total_secs });
 
                         if elapsed_secs >= total_secs {
-                            let _ = event_tx.send(TimerEvent::Complete { skipped: false });
+                            let _ = event_tx.send(TimerEvent::Complete { skipped: false, elapsed_secs });
                             elapsed_secs = 0;
                             Transition::To(Phase::Idle)
                         } else {
@@ -229,8 +229,8 @@ fn run_loop(
                         Transition::To(Phase::Suspended)
                     }
                     Ok(TimerCommand::Skip) => {
+                        let _ = event_tx.send(TimerEvent::Complete { skipped: true, elapsed_secs });
                         elapsed_secs = 0;
-                        let _ = event_tx.send(TimerEvent::Complete { skipped: true });
                         Transition::To(Phase::Idle)
                     }
                     Ok(TimerCommand::Reset) => {
@@ -613,6 +613,49 @@ mod tests {
             matches!(events.last(), Some(TimerEvent::Complete { .. })),
             "timer must still complete after clamped Prime in Paused phase"
         );
+    }
+
+    #[test]
+    fn skip_reports_time_worked_while_running_or_paused() {
+        for pause_first in [false, true] {
+            let (handle, rx) = spawn(1500, TICK);
+            handle.send(TimerCommand::Start);
+            wait_for_tick(&rx, 2);
+            let mut paused_at = None;
+            if pause_first {
+                handle.send(TimerCommand::Pause);
+                loop {
+                    if let TimerEvent::Paused { elapsed_secs } = rx.recv_timeout(Duration::from_secs(2)).unwrap() {
+                        paused_at = Some(elapsed_secs);
+                        break;
+                    }
+                }
+            }
+            handle.send(TimerCommand::Skip);
+            let events = collect_until_complete(&rx, Duration::from_secs(2));
+            match events.last().unwrap() {
+                TimerEvent::Complete { skipped: true, elapsed_secs } => {
+                    assert!(*elapsed_secs >= 2);
+                    if let Some(expected) = paused_at {
+                        assert_eq!(*elapsed_secs, expected);
+                    }
+                }
+                event => panic!("expected skipped completion, got {event:?}"),
+            }
+            handle.send(TimerCommand::Start);
+            assert!(matches!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), TimerEvent::Started { .. }));
+            assert!(matches!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), TimerEvent::Tick { elapsed_secs: 1, .. }));
+            handle.send(TimerCommand::Shutdown);
+        }
+    }
+
+    #[test]
+    fn skip_unstarted_timer_reports_zero_work() {
+        let (handle, rx) = spawn(1500, TICK);
+        handle.send(TimerCommand::Skip);
+        assert!(matches!(rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            TimerEvent::Complete { skipped: true, elapsed_secs: 0 }));
+        handle.send(TimerCommand::Shutdown);
     }
 
     #[test]

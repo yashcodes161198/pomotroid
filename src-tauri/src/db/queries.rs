@@ -37,6 +37,18 @@ pub fn complete_session(
     Ok(())
 }
 
+pub fn complete_focus_early(conn: &Connection, session_id: i64, elapsed_secs: u32) -> Result<()> {
+    if elapsed_secs == 0 {
+        return complete_session(conn, session_id, false);
+    }
+    conn.execute(
+        "UPDATE sessions SET ended_at = ?1, duration_secs = ?2, completed = 1
+         WHERE id = ?3 AND round_type = 'work'",
+        params![unix_now(), elapsed_secs, session_id],
+    )?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Stats queries
 // ---------------------------------------------------------------------------
@@ -305,6 +317,35 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         migrations::run(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn finishing_focus_early_counts_actual_work_in_statistics() {
+        let conn = setup();
+        let first = insert_session(&conn, "work", 1500).unwrap();
+        complete_focus_early(&conn, first, 300).unwrap();
+        let extended = insert_session(&conn, "work", 1800).unwrap();
+        complete_focus_early(&conn, extended, 1620).unwrap();
+        let break_id = insert_session(&conn, "short-break", 300).unwrap();
+        complete_session(&conn, break_id, false).unwrap();
+        let stats = get_all_time_stats(&conn).unwrap();
+        assert_eq!(stats.completed_work_sessions, 2);
+        assert_eq!(stats.total_work_secs, 1920);
+        let daily = get_daily_stats(&conn).unwrap();
+        assert_eq!(daily.rounds, 2);
+        assert_eq!(daily.focus_mins, 32);
+        let ended: bool = conn.query_row("SELECT ended_at IS NOT NULL FROM sessions WHERE id = ?1", [first], |row| row.get(0)).unwrap();
+        assert!(ended);
+    }
+
+    #[test]
+    fn zero_elapsed_focus_is_not_counted_as_completed_work() {
+        let conn = setup();
+        let id = insert_session(&conn, "work", 1500).unwrap();
+        complete_focus_early(&conn, id, 0).unwrap();
+        let stats = get_all_time_stats(&conn).unwrap();
+        assert_eq!(stats.completed_work_sessions, 0);
+        assert_eq!(stats.total_work_secs, 0);
     }
 
     #[test]

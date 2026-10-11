@@ -131,6 +131,23 @@ impl SequenceState {
         }
     }
 
+    pub fn advance_after_skip(&mut self, settings: &Settings, elapsed_secs: u32) -> (RoundType, u32) {
+        if self.current_round != RoundType::Work {
+            return self.advance(settings);
+        }
+        self.previous_round = Some(RoundType::Work);
+        if elapsed_secs > 0 {
+            self.work_round_number = if self.work_round_number >= self.work_rounds_total {
+                1
+            } else {
+                self.work_round_number + 1
+            };
+            self.session_work_count += 1;
+        }
+        self.distraction_count = 0;
+        (RoundType::Work, settings.time_work_secs)
+    }
+
     /// Reset the sequence to the initial state (used by the Reset command).
     pub fn reset(&mut self) {
         self.current_round = RoundType::Work;
@@ -148,6 +165,48 @@ impl SequenceState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn focus_skip_starts_next_task_without_a_break_and_wraps_the_cycle() {
+        let s = Settings::default();
+        let mut seq = SequenceState::new(4);
+        for expected_round in [2, 3, 4, 1, 2] {
+            let previous_count = seq.session_work_count;
+            seq.distraction_count = 3;
+            assert_eq!(seq.advance_after_skip(&s, 300), (RoundType::Work, s.time_work_secs));
+            assert_eq!(seq.current_round, RoundType::Work);
+            assert_eq!(seq.previous_round, Some(RoundType::Work));
+            assert_eq!(seq.work_round_number, expected_round);
+            assert_eq!(seq.session_work_count, previous_count + 1);
+            assert_eq!(seq.distraction_count, 0);
+        }
+        // Normal completion still schedules the configured break.
+        assert_eq!(seq.advance(&s), (RoundType::ShortBreak, s.time_short_break_secs));
+    }
+
+    #[test]
+    fn skipping_an_unstarted_focus_does_not_count_another_round() {
+        let s = Settings::default();
+        let mut seq = SequenceState::new(4);
+        seq.work_round_number = 3;
+        seq.session_work_count = 7;
+        assert_eq!(seq.advance_after_skip(&s, 0), (RoundType::Work, s.time_work_secs));
+        assert_eq!(seq.work_round_number, 3);
+        assert_eq!(seq.session_work_count, 7);
+    }
+
+    #[test]
+    fn skipping_breaks_keeps_existing_sequence_behavior() {
+        let s = Settings::default();
+        for (round, expected_number) in [(RoundType::ShortBreak, 3), (RoundType::LongBreak, 1)] {
+            let mut seq = SequenceState::new(4);
+            seq.current_round = round;
+            seq.work_round_number = 2;
+            assert_eq!(seq.advance_after_skip(&s, 17), (RoundType::Work, s.time_work_secs));
+            assert_eq!(seq.work_round_number, expected_number);
+            assert_eq!(seq.session_work_count, 2);
+        }
+    }
 
     /// Build a minimal `Settings` with the given durations.
     fn settings(work: u32, short: u32, long: u32) -> Settings {

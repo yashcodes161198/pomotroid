@@ -89,8 +89,12 @@
     title={m.timer_add_five_minutes()}>+5</button
   >
   <div class="footer-actions">
-    <Tooltip text={m.tooltip_skip()}>
-      <button class="btn-icon" onclick={timerSkip} aria-label="Skip round">
+    <Tooltip text={snap.round_type === 'work' ? m.tooltip_finish_focus() : m.tooltip_skip()}>
+      <button
+        class="btn-icon"
+        onclick={timerSkip}
+        aria-label={snap.round_type === 'work' ? m.timer_finish_focus() : 'Skip round'}
+      >
         <svg width="16" height="16" viewBox="0 0 16 16">
           <polygon points="1,1 10,8 1,15" fill="currentColor" />
           <rect x="12" y="1" width="3" height="14" rx="1" fill="currentColor" />

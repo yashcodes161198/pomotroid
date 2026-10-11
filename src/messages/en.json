@@ -147,6 +147,8 @@
   "tooltip_statistics": "Open Statistics",
   "tooltip_restart_round": "Restart the current round from the beginning.",
   "tooltip_skip": "Skip to the next round.",
+  "timer_finish_focus": "Finish focus session",
+  "tooltip_finish_focus": "Count the time worked and begin a new focus session.",
   "tooltip_reset": "Reset the timer to the first work round. Current session progress will be cleared.",
   "tooltip_mute": "Mute alert sounds",
   "tooltip_unmute": "Unmute alert sounds",

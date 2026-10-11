@@ -34,7 +34,7 @@ pub fn timer_reset(timer: State<'_, TimerController>) {
     timer.reset();
 }
 
-/// Skip the current round: fires Complete immediately and advances to the next.
+/// Finish focus early with elapsed-time credit, or skip the current break.
 #[tauri::command]
 pub fn timer_skip(timer: State<'_, TimerController>) {
     timer.skip();

@@ -338,7 +338,7 @@ fn listen_events(
                 let _ = app.emit("timer:duration-changed", snapshot);
             }
 
-            TimerEvent::Complete { skipped: was_skipped } => {
+            TimerEvent::Complete { skipped: was_skipped, elapsed_secs } => {
                 let completed_round = sequence.lock().unwrap().current_round.as_str().to_string();
                 log::info!(
                     "[timer] round complete type={completed_round} skipped={was_skipped}"
@@ -347,7 +347,14 @@ fn listen_events(
                 // --- Session recording: mark the completed round ---
                 if let Some(session_id) = current_session_id.take() {
                     if let Ok(conn) = db.lock() {
-                        let _ = queries::complete_session(&conn, session_id, !was_skipped);
+                        let result = if was_skipped && completed_round == "work" {
+                            queries::complete_focus_early(&conn, session_id, elapsed_secs)
+                        } else {
+                            queries::complete_session(&conn, session_id, !was_skipped)
+                        };
+                        if let Err(e) = result {
+                            log::error!("[timer] failed to finish session: {e}");
+                        }
                     }
                 }
 
@@ -355,7 +362,11 @@ fn listen_events(
                 let (next_round, next_duration, auto_start_work, auto_start_break) = {
                     let mut seq = sequence.lock().unwrap();
                     let s = settings.lock().unwrap();
-                    let (rt, dur) = seq.advance(&s);
+                    let (rt, dur) = if was_skipped {
+                        seq.advance_after_skip(&s, elapsed_secs)
+                    } else {
+                        seq.advance(&s)
+                    };
                     (rt, dur, s.auto_start_work, s.auto_start_break)
                 };
 

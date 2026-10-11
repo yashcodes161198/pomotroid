@@ -36,7 +36,11 @@
   >
 
   <!-- Skip round -->
-  <button class="btn-side" onclick={timerSkip} aria-label="Skip round">
+  <button
+    class="btn-side"
+    onclick={timerSkip}
+    aria-label={state.round_type === 'work' ? m.timer_finish_focus() : 'Skip round'}
+  >
     <svg width="10" height="10" viewBox="0 0 16 16">
       <polygon points="1,1 10,8 1,15" fill="currentColor" />
       <rect x="12" y="1" width="3" height="14" rx="1" fill="currentColor" />
