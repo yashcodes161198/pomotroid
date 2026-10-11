@@ -332,13 +332,21 @@ mod tests {
         let (handle, rx) = spawn(6, TICK);
         handle.send(TimerCommand::Start);
 
-        // Let 2 ticks fire, then pause.
-        std::thread::sleep(TICK * 2 + TICK / 2);
+        // Wait for actual ticks: thread startup can exceed 50 ms on Windows CI.
+        let mut events_before_resume = Vec::new();
+        loop {
+            let event = rx.recv_timeout(Duration::from_secs(2)).expect("timer must tick");
+            let reached_two = matches!(event, TimerEvent::Tick { elapsed_secs: 2, .. });
+            events_before_resume.push(event);
+            if reached_two {
+                break;
+            }
+        }
         handle.send(TimerCommand::Pause);
 
         // Collect events so far.
         std::thread::sleep(TICK * 3); // no ticks should arrive during this gap
-        let events_before_resume = drain(&rx);
+        events_before_resume.extend(drain(&rx));
 
         let paused = events_before_resume
             .iter()

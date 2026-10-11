@@ -21,10 +21,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
       - run: npm ci
       - run: npm run test:duration
       - run: npm run check
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --release --manifest-path src-tauri/Cargo.toml
       - run: npm run tauri build -- --bundles nsis
         env:
           CI: true
